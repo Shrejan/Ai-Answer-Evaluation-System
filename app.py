@@ -30,6 +30,4 @@ async def run_ocr(file: UploadFile = File(...)):
         pts = np.array(box).astype(int)
         cv2.polylines(path, [pts], True, (0, 255, 0), 1)
 
-    cv2.imwrite("detected_with_gs_text.jpg", path)
-
     return {"detections": result}
