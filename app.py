@@ -129,4 +129,4 @@ async def run_ocr(file: UploadFile = File(...)):
     return {
         "lines_detected": len(lines),
         "extracted_text": full_text
-    }
+    }   
