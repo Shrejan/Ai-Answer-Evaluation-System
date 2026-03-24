@@ -73,7 +73,7 @@ ai-answer-evaluation/
 ### 1. Clone the repository
 
 ```
-git clone https://github.com/shrejan/Ai-Answer-Evaluation-System.git
+git clone https://github.com/Shrejan/Ai-Answer-Evaluation-System.git
 cd ai-answer-evaluation
 ```
 
