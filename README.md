@@ -62,7 +62,7 @@ ai-answer-evaluation/
 │
 ├── data/                   # Sample images / test data
 ├── notebooks/              # Experiments
-├── requirements.txt
+├── Requirement.txt
 └── README.md
 ```
 
@@ -93,7 +93,7 @@ source venv/bin/activate     # Linux/Mac
 ### 4. Install dependencies
 
 ```
-pip install -r requirements.txt
+pip install -r Requirement.txt
 ```
 
 ---
@@ -115,7 +115,7 @@ Open in browser:
 
 ### 🔹 Extract & Evaluate Answer
 
-**POST** `/evaluate/`
+**POST** `/orc`
 
 #### Request:
 
