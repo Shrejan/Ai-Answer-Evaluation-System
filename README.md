@@ -20,14 +20,13 @@ An intelligent system that automatically evaluates handwritten answer scripts us
 ### 🔹 Stage 1: Image Processing & Text Extraction
 
 * Input: Scanned/photographed answer sheet
-* Image preprocessing (grayscale, denoising, cropping)
+* Image preprocessing (grayscale, denoising)
 * Text detection using PaddleOCR
 * Text recognition using TrOCR
 
 ### 🔹 Stage 2: Text Preprocessing
 
 * Spell correction
-* Grammar normalization
 * Structuring raw OCR output into readable format
 
 ### 🔹 Stage 3: Answer Evaluation
