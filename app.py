@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 from PIL import Image
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+import random
 
 
 
@@ -54,7 +55,7 @@ async def run_ocr(file: UploadFile = File(...)):
     bboxes = [quad_to_bbox(q) for q in boxes]
     bboxes.sort(key=lambda b: b["y_center"])
 
-    def group_into_lines(bboxes, y_threshold=15):
+    def group_into_lines(bboxes, y_threshold=10):
         lines = []
         for bbox in bboxes:
             if not lines:
@@ -69,9 +70,10 @@ async def run_ocr(file: UploadFile = File(...)):
             line.sort(key=lambda b: b["x_min"])
         return lines
 
-    lines = group_into_lines(bboxes, y_threshold=15)
+    lines = group_into_lines(bboxes, y_threshold=10)
 
-    def merge_line_bbox(line, pad=4):
+
+    def merge_line_bbox(line, pad=0):
         x_min = min(b["x_min"] for b in line)
         y_min = min(b["y_min"] for b in line)
         x_max = max(b["x_max"] for b in line)
@@ -90,16 +92,43 @@ async def run_ocr(file: UploadFile = File(...)):
 
     # FIX 2: use thresh directly (converted to BGR) instead of re-reading from disk
     image = cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)
+    
+    # Draw all detected boxes in red
+    box_image = cv2.imread("processed.jpg")
+    
+    for box in boxes:
+        # Convert quad points to integer coordinates
+        points = np.array(box, dtype=np.int32)
+        # Draw red box around detected text
+        cv2.polylines(box_image, [points], True, (0, 0, 255), 2)
+    
+    # Save image with detected boxes
+    cv2.imwrite("./line_imgs/box_detected.png", box_image)
+    
+    # Draw borders around each line with random colors
+    # for line in lines:
+        # x1, y1, x2, y2 = merge_line_bbox(line, pad=5)
+        # color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+        # cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
+    
+    # Save the image with borders
+    cv2.imwrite("./line_imgs/lines_with_borders.jpg", image)
+    
     line_crops = []
 
     for i, line in enumerate(lines):
-        x1, y1, x2, y2 = merge_line_bbox(line, pad=4)
+        x1, y1, x2, y2 = merge_line_bbox(line, pad=0)
         crop = crop_line(image, x1, y1, x2, y2)
         if crop.size > 0:
             line_crops.append(crop)
 
     print(f"Lines detected : {len(lines)}")
     print(f"Crops ready    : {len(line_crops)}")
+    
+
+    for i, crop in enumerate(line_crops):
+        cv2.imwrite(f"./line_imgs/line_{i+1}.jpg", crop)
+
 
     def recognize_lines(line_crops: list, batch_size: int = 8) -> list[str]:
         all_texts = []
@@ -129,4 +158,8 @@ async def run_ocr(file: UploadFile = File(...)):
     return {
         "lines_detected": len(lines),
         "extracted_text": full_text
-    }   
+    } 
+
+def imread (img):
+    box_image = img.copy()
+    return box_image  
