@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 
 # 1. Load image
-image = Image.open("imgs/test2.jpg").convert("L")
+image = Image.open("processed.jpg").convert("L")
 
 # 2. Binarize
 bin_img = binarization.nlbin(image)
