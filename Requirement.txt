@@ -1,8 +1,7 @@
 pip install fastapi
 pip install uvicorn
-pip install torch==2.2.2 
-pip install paddlepaddle==3.0.0
-pip install paddleocr==2.8.1
+pip install torch 
+pip install kraken
 pip install opencv-python
 pip install numpy
 pip install pillow
