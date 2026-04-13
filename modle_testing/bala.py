@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 
 # 1. Load image
-image = Image.open("processed.jpg").convert("L")
+image = Image.open("imgs/test2.jpg").convert("L")
 
 # 2. Binarize
 bin_img = binarization.nlbin(image)
@@ -26,6 +26,6 @@ for line in segmentation.lines:
     cv2.polylines(cv_img, [pts], True, (0, 255, 0), 2)
 
 # 7. Save output
-cv2.imwrite("detected_kraken_processed.png", cv_img)
+cv2.imwrite("detected_kraken_processed_test2.png", cv_img)
 
 print("✅ BLLA segmentation SUCCESS!")
