@@ -11,7 +11,7 @@ import os
 os.makedirs("lines", exist_ok=True)
 
 # 1. Load ORIGINAL image (color)
-orig_image = Image.open("imgs/test2.jpg").convert("RGB")
+orig_image = Image.open("test2.jpg").convert("RGB")
 orig_np = np.array(orig_image)
 
 # 2. Create grayscale ONLY for Kraken
