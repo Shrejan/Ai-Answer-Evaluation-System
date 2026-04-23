@@ -93,7 +93,8 @@ class Config:
     row_tolerance: float = 0.55  # fraction of median line height for row grouping
 
     # ── Parallelism ──────────────────────────────────────────────────
-    preproc_workers: int = max(1, (os.cpu_count() or 4) - 1)
+    preproc_workers: int =2
+    # max(1, (os.cpu_count() or 4) - 1)
     spell_workers: int = 2
 
     # ── Spell correction ─────────────────────────────────────────────
@@ -633,7 +634,11 @@ async def ocr_endpoint(file: UploadFile = File(...)):
     # for concurrent requests while the GPU/CPU pipeline is running.
     loop = asyncio.get_event_loop()
     result: OCRResult = await loop.run_in_executor(None, run_pipeline, img_bgr)
+    
+    full_text = result.text
 
+    with open("extracted_text.txt", "w", encoding="utf-8") as f:
+        f.write(full_text)
     return JSONResponse(content={
         "lines_detected":    result.lines_detected,
         "lines_recognized":  result.lines_recognized,
