@@ -163,9 +163,9 @@ async def lifespan(app: FastAPI):
     if DEVICE.type == "cuda":
         G.kraken_model.nn.to(DEVICE)
     log.info("Kraken blla loaded ✓")
-
     # ── TrOCR ─────────────────────────────────────────────────────
     G.trocr_processor = TrOCRProcessor.from_pretrained(CFG.trocr_model)
+  
     G.trocr_model = VisionEncoderDecoderModel.from_pretrained(CFG.trocr_model)
     G.trocr_model.to(DEVICE)
     G.trocr_model.eval()
@@ -196,7 +196,8 @@ async def lifespan(app: FastAPI):
 
     # ── Warm-up ────────────────────────────────────────────────────
     _warmup()
-
+    log.info(f"Kraken is on {next(G.kraken_model.nn.parameters()).device}")
+    log.info(f"TrOCR is on {next(G.trocr_model.parameters()).device}")
     log.info(f"Pipeline ready in {(time.perf_counter()-t0)*1000:.0f} ms")
     yield
 

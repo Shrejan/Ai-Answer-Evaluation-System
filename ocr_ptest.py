@@ -1,6 +1,6 @@
 """
 Handwritten OCR Pipeline — Kraken blla + TrOCR-base
-Optimised for 50 MP images (<15s per page) with dual‑resolution detection.
+Optimised for 50 MP images (<10s per page) with dual‑resolution detection.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 import cv2
-cv2.setNumThreads(1)   # prevent CPU oversubscription in thread pool
+cv2.setNumThreads(1)          # prevent CPU oversubscription
 
 import numpy as np
 import torch
@@ -39,11 +39,11 @@ class Config:
     trocr_model: str = "microsoft/trocr-base-handwritten"
     max_new_tokens: int = 128
     beam_size: int = 4
-    batch_size_cuda: int = 16          # safe for 4 GB VRAM
+    batch_size_cuda: int = 20          # bumped for speed
     batch_size_cpu: int = 4
     preproc_workers: int = max(1, (os.cpu_count() or 4) - 1)
-    row_tolerance: float = 0.55        # fraction of median line height for row grouping
-    max_detection_dim: int = 2000      # downscale large images to this longest side for detection
+    row_tolerance: float = 0.55
+    max_detection_dim: int = 1000      # smaller = faster detection on CPU
 
 
 CFG = Config()
@@ -55,7 +55,7 @@ USE_FP16 = DEVICE.type == "cuda"
 @dataclass
 class TextLine:
     index: int
-    polygon: np.ndarray     # pixel coords in the original (full‑res) image
+    polygon: np.ndarray     # full‑res coords
     crop_pil: Optional[Image.Image] = None
     text: str = ""
     confidence: float = 0.0
@@ -72,7 +72,7 @@ class OCRResult:
 
 # ═══════════════ GLOBAL MODELS ═══════════════
 class _Models:
-    kraken_model: torch.nn.Module = None
+    kraken_model: TorchVGSLModel = None
     trocr_processor: TrOCRProcessor = None
     trocr_model: VisionEncoderDecoderModel = None
     cuda_stream: Optional[torch.cuda.Stream] = None
@@ -86,16 +86,16 @@ G = _Models()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     t0 = time.perf_counter()
-    # Kraken
-    G.kraken_model = kraken_blla.load_model()
-    # G.kraken_model = TorchVGSLModel.load_model("blla.mlmodel")
 
+    # Kraken – use your working loading method
+    G.kraken_model = TorchVGSLModel.load_model("blla.mlmodel")
     G.kraken_model.eval()
     if DEVICE.type == "cuda":
         G.kraken_model.nn.to(DEVICE)
 
     # TrOCR
     G.trocr_processor = TrOCRProcessor.from_pretrained(CFG.trocr_model)
+    
     G.trocr_model = VisionEncoderDecoderModel.from_pretrained(CFG.trocr_model)
     G.trocr_model.to(DEVICE)
     G.trocr_model.eval()
@@ -104,17 +104,15 @@ async def lifespan(app: FastAPI):
         G.trocr_model = G.trocr_model.half()
         torch.backends.cudnn.benchmark = True
 
-    try:
-        G.trocr_model = torch.compile(G.trocr_model, mode="reduce-overhead")
-    except Exception:
-        pass
+    # torch.compile removed – it caused recompilation on first real batch
 
     if DEVICE.type == "cuda":
         G.cuda_stream = torch.cuda.Stream()
 
     G.preproc_pool = ThreadPoolExecutor(max_workers=CFG.preproc_workers)
     _warmup()
-
+    log.info(f"Kraken is on {next(G.kraken_model.nn.parameters()).device}")
+    log.info(f"TrOCR is on {next(G.trocr_model.parameters()).device}")
     log.info("Pipeline ready — Kraken + TrOCR on %s (%.0f ms)", DEVICE, (time.perf_counter() - t0) * 1000)
     yield
     G.preproc_pool.shutdown(wait=False)
@@ -136,9 +134,8 @@ def _warmup():
 # ═══════════════ STEP 1 — DETECTION (on downscaled image) ═══════════════
 def detect_lines(image_pil: Image.Image) -> List[TextLine]:
     """
-    Run Kraken segmentation on a (possibly downscaled) image.
-    Returns TextLine objects with polygon coordinates *in the downscaled image’s coordinate system*.
-    They will be scaled back to the original resolution in run_pipeline().
+    Kraken segmentation on the (small) image.
+    Returns TextLine objects with polygon coords in the small image's system.
     """
     try:
         seg = kraken_blla.segment(image_pil, model=G.kraken_model)
@@ -160,7 +157,6 @@ def detect_lines(image_pil: Image.Image) -> List[TextLine]:
 def _sort_reading_order(lines: List[TextLine]) -> List[TextLine]:
     if not lines:
         return lines
-
     y_centers = [np.mean(l.polygon[:, 1]) for l in lines]
     heights = [np.ptp(l.polygon[:, 1]) for l in lines]
     median_h = float(np.median(heights)) if heights else 30.0
@@ -188,10 +184,6 @@ def _sort_reading_order(lines: List[TextLine]) -> List[TextLine]:
 
 # ═══════════════ STEP 2 — CROP + PREPROCESS (full‑res image) ═══════════════
 def _preprocess_single(args: Tuple[np.ndarray, np.ndarray]) -> Optional[np.ndarray]:
-    """
-    Expects (full_res_image_bgr, polygon_in_full_res_coords).
-    Crops from the original 50 MP image, then resizes to 384 px height -> fast denoise -> deskew -> RGB.
-    """
     image_np, polygon = args
     x_min = max(0, int(polygon[:, 0].min()))
     x_max = min(image_np.shape[1], int(polygon[:, 0].max()))
@@ -204,7 +196,6 @@ def _preprocess_single(args: Tuple[np.ndarray, np.ndarray]) -> Optional[np.ndarr
 
     crop = image_np[y_min:y_max, x_min:x_max].copy()
 
-    # Polygon mask to clean background
     local_poly = polygon.copy()
     local_poly[:, 0] -= x_min
     local_poly[:, 1] -= y_min
@@ -212,17 +203,14 @@ def _preprocess_single(args: Tuple[np.ndarray, np.ndarray]) -> Optional[np.ndarr
     cv2.fillPoly(mask, [local_poly.astype(np.int32)], 255)
     crop[mask == 0] = 255
 
-    # Resize to 384 px height — this shrinks the crop dramatically and makes processing fast
     target_h = 384
     if h > target_h:
         scale = target_h / h
         new_w = max(1, int(w * scale))
         crop = cv2.resize(crop, (new_w, target_h), interpolation=cv2.INTER_AREA)
 
-    # Fast denoise (replaces NL‑Means which was the bottleneck) — GaussianBlur is 100x faster
     gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
     gray = cv2.GaussianBlur(gray, (3, 3), 0)
-
     clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
     gray = clahe.apply(gray)
     gray = _deskew(gray)
@@ -243,17 +231,9 @@ def _deskew(gray: np.ndarray) -> np.ndarray:
     return cv2.warpAffine(gray, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
 
 
-def preprocess_parallel(
-    full_res_bgr: np.ndarray,
-    lines: List[TextLine],
-) -> List[Tuple[int, Image.Image]]:
-    """
-    Submit all crops (using polygons already in full‑res coordinates) to the thread pool.
-    Returns list of (original_line_index, PIL_image).
-    """
+def preprocess_parallel(full_res_bgr: np.ndarray, lines: List[TextLine]) -> List[Tuple[int, Image.Image]]:
     args = [(full_res_bgr, line.polygon) for line in lines]
     futures = {G.preproc_pool.submit(_preprocess_single, a): i for i, a in enumerate(args)}
-
     results = []
     for f in as_completed(futures):
         idx = futures[f]
@@ -317,18 +297,12 @@ def recognize_batch(pil_images: List[Image.Image]) -> Tuple[List[str], List[floa
     return all_texts, all_confidences
 
 
-# ═══════════════ FULL PIPELINE (dual‑resolution) ═══════════════
+# ═══════════════ FULL PIPELINE ═══════════════
 def run_pipeline(image_bgr: np.ndarray) -> OCRResult:
-    """
-    1. Downscale image if needed -> detection
-    2. Scale polygons back to full‑res coords
-    3. Crop from original image, preprocess
-    4. Batch recognition with confidence
-    """
     timings = {}
     t_start = time.perf_counter()
 
-    full_res = image_bgr   # keep original
+    full_res = image_bgr
     h, w = full_res.shape[:2]
     max_dim = CFG.max_detection_dim
     scale = 1.0
@@ -353,13 +327,13 @@ def run_pipeline(image_bgr: np.ndarray) -> OCRResult:
     if not lines:
         return OCRResult(lines_detected=0, lines_recognized=0, text="", timings_ms=timings)
 
-    # Scale polygon coordinates back to full‑res
+    # Scale polygons back to full‑res
     if scale != 1.0:
         inv_scale = 1.0 / scale
         for line in lines:
             line.polygon = (line.polygon * inv_scale).astype(np.int32)
 
-    # Preprocessing on full‑resolution image
+    # Preprocessing on full‑res
     t0 = time.perf_counter()
     indexed_crops = preprocess_parallel(full_res, lines)
     timings["preprocess_ms"] = round((time.perf_counter() - t0) * 1000, 1)
@@ -377,7 +351,7 @@ def run_pipeline(image_bgr: np.ndarray) -> OCRResult:
     timings["recognition_ms"] = round((time.perf_counter() - t0) * 1000, 1)
     log.info("Recognition: %d lines in %s ms", len(raw_texts), timings["recognition_ms"])
 
-    # Assemble final output (preserve reading order)
+    # Assemble final text (reading order preserved)
     slot_to_text = {}
     slot_to_conf = {}
     for idx, text, conf in zip(valid_indices, raw_texts, confidences):
@@ -408,7 +382,7 @@ def run_pipeline(image_bgr: np.ndarray) -> OCRResult:
 app = FastAPI(
     title="Handwritten OCR — Kraken + TrOCR",
     description="High-accuracy handwritten text recognition optimised for 50 MP images",
-    version="2.2.0",
+    version="2.2.1",
     lifespan=lifespan,
 )
 
@@ -426,7 +400,6 @@ async def ocr_endpoint(file: UploadFile = File(...)):
 
     loop = asyncio.get_event_loop()
     result: OCRResult = await loop.run_in_executor(None, run_pipeline, img_bgr)
-
     full_text = result.text
 
     with open("extracted_text.txt", "w", encoding="utf-8") as f:
@@ -469,8 +442,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         img_path = sys.argv[1]
         print(f"\nProcessing: {img_path}")
-        # Manual model loading for CLI
-        G.kraken_model = kraken_blla.load_model()
+        G.kraken_model = TorchVGSLModel.load_model("blla.mlmodel")
         G.kraken_model.eval()
         if DEVICE.type == "cuda":
             G.kraken_model.nn.to(DEVICE)
@@ -480,10 +452,6 @@ if __name__ == "__main__":
         if USE_FP16:
             G.trocr_model = G.trocr_model.half()
             torch.backends.cudnn.benchmark = True
-        try:
-            G.trocr_model = torch.compile(G.trocr_model, mode="reduce-overhead")
-        except Exception:
-            pass
         if DEVICE.type == "cuda":
             G.cuda_stream = torch.cuda.Stream()
         G.preproc_pool = ThreadPoolExecutor(max_workers=CFG.preproc_workers)
