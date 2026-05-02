@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import cv2
 
-from PIL import Image, ImageEnhance, ImageFilter, ImageDraw
+from PIL import Image, ImageDraw
 from tqdm import tqdm
 from pathlib import Path
 
@@ -26,8 +26,8 @@ MIN_LINE_HEIGHT   = 18
 MIN_LINE_WIDTH    = 80
 CROP_PADDING_X    = 10
 CROP_PADDING_Y    = 4
-TROCR_LINE_HEIGHT = 64
-TROCR_BATCH_SIZE  = 8      # raise to 16 if you have 8GB+ VRAM
+TROCR_LINE_HEIGHT = 64       # not used for preprocessing, just for reference
+TROCR_BATCH_SIZE  = 8        # raise to 16 if you have 8GB+ VRAM
 
 os.makedirs(LINE_OUTPUT_DIR, exist_ok=True)
 
@@ -126,53 +126,24 @@ def make_kraken_copy(original: Image.Image) -> tuple[Image.Image, float]:
     return original.resize((int(w / scale), int(h / scale)), Image.LANCZOS), scale
 
 
-def preprocess_for_kraken(image: Image.Image) -> Image.Image:
-    """
-    Light preprocessing for Kraken's neural segmenter.
-    Kraken's blla is a neural net — it prefers clean, moderate-contrast
-    input, NOT heavy binarization (that destroys the texture it uses).
-    """
-    img = image.convert("L")
-    img = ImageEnhance.Contrast(img).enhance(1.5)   # mild boost only
-    img = img.filter(ImageFilter.MedianFilter(size=3))
-    return img.convert("RGB")
-
-
 def scale_boundary_to_original(boundary: list, scale: float) -> list:
     return [(int(x * scale), int(y * scale)) for x, y in boundary]
 
 
 # ════════════════════════════════════════════════════════════════
-# POLYGON-AWARE CROP  ← KEY FIX #1
+# POLYGON-AWARE CROP  ← keeps the exact line shape, no bbox bleed
 # ════════════════════════════════════════════════════════════════
 
 def crop_polygon_from_original(
     original: Image.Image,
-    boundary: list,          # Kraken polygon — can be wavy/curved, NOT a rectangle
+    boundary: list,          # Kraken polygon — can be wavy/curved
 ):
-    """
-    Crop using the EXACT polygon Kraken gave us, not its bounding box.
-
-    Why this matters for wavy lines:
-      - Kraken blla returns a true polygon boundary that follows the
-        ascenders/descenders of each line, including curves and waves.
-      - The old approach took min/max of x,y → a rectangle that includes
-        text from neighbouring lines above and below.
-      - Here we: (1) take the tight bounding box of the polygon,
-        (2) draw the polygon as a white mask on black,
-        (3) paste white (255) everywhere OUTSIDE the polygon,
-        so TrOCR only sees the actual line pixels — nothing above or below.
-
-    Result: wavy/curved lines are isolated cleanly even when lines are
-    close together and a bounding box would bleed into neighbours.
-    """
     if not boundary or len(boundary) < 3:
         return None
 
     xs = [p[0] for p in boundary]
     ys = [p[1] for p in boundary]
 
-    # Tight bbox with small padding
     x1 = max(0, min(xs) - CROP_PADDING_X)
     y1 = max(0, min(ys) - CROP_PADDING_Y)
     x2 = min(original.width,  max(xs) + CROP_PADDING_X)
@@ -183,136 +154,17 @@ def crop_polygon_from_original(
     if crop_h < MIN_LINE_HEIGHT or crop_w < MIN_LINE_WIDTH:
         return None
 
-    # ── Translate polygon to local crop coordinates ──────────
     local_poly = [(x - x1, y - y1) for x, y in boundary]
 
-    # ── Crop the image patch ──────────────────────────────────
     patch = original.crop((x1, y1, x2, y2)).convert("RGB")
 
-    # ── Build polygon mask (white inside = keep, black outside) ─
-    mask = Image.new("L", (crop_w, crop_h), 0)          # all black
-    ImageDraw.Draw(mask).polygon(local_poly, fill=255)   # white inside polygon
+    mask = Image.new("L", (crop_w, crop_h), 0)
+    ImageDraw.Draw(mask).polygon(local_poly, fill=255)
 
-    # ── White-fill everything outside the polygon ─────────────
     white = Image.new("RGB", (crop_w, crop_h), (255, 255, 255))
-    result = Image.composite(patch, white, mask)          # patch where mask=255
+    result = Image.composite(patch, white, mask)
 
     return result
-
-
-# ════════════════════════════════════════════════════════════════
-# LINE PREPROCESSING FOR TROCR  ← KEY FIX #2
-# ════════════════════════════════════════════════════════════════
-
-def remove_background_noise(line_img: Image.Image) -> Image.Image:
-    """
-    PURPOSE: Handle yellowed/aged/textured paper that causes background
-    noise to dominate after simple thresholding.
-
-    APPROACH — three-step strategy:
-      1. Convert to grayscale in LAB space (perceptually uniform, separates
-         luminance from colour so yellow paper doesn't darken the L channel)
-      2. CLAHE on the L channel → local contrast normalisation that
-         pushes paper background toward white regardless of paper colour
-      3. Sauvola-style local adaptive threshold → finds ink vs paper
-         locally, so even shadowed or uneven paper is handled per-region
-
-    Why NOT global Otsu here:
-      Otsu finds one global threshold. If paper is textured or has shadows,
-      large areas of background fall on the "dark" side and get thresholded
-      as ink. Adaptive methods threshold within small windows, so they adapt
-      to local brightness — exactly what degraded paper needs.
-    """
-    img_np = np.array(line_img)
-
-    # Step 1: LAB → CLAHE on L only (paper colour irrelevant after this)
-    lab      = cv2.cvtColor(img_np, cv2.COLOR_RGB2LAB)
-    l, a, b  = cv2.split(lab)
-    clahe    = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(4, 4))
-    l        = clahe.apply(l)
-    lab      = cv2.merge((l, a, b))
-    enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
-    gray     = cv2.cvtColor(enhanced, cv2.COLOR_RGB2GRAY)
-
-    # Step 2: Adaptive threshold — local windows (31px) adapt to paper texture
-    binary = cv2.adaptiveThreshold(
-        gray, 255,
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY,
-        blockSize=31,    # larger window → more robust to slow gradients
-        C=12,            # C=12 comfortably removes light paper texture noise
-    )
-
-    # Step 3: Morphological cleanup — remove tiny isolated speckles
-    # that survive adaptive threshold (pen scratches, paper fibres)
-    kernel  = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
-    cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
-
-    # Step 4: Close small gaps in strokes broken by noisy thresholding
-    kernel2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 1))
-    cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel2, iterations=1)
-
-    return Image.fromarray(cleaned).convert("RGB")
-
-
-def deskew_line(line_img: Image.Image) -> Image.Image:
-    """
-    Correct slight tilt. Works on the already-cleaned binary image
-    so only real ink pixels contribute to the angle estimate.
-    """
-    img_np = np.array(line_img.convert("L"))
-    _, binary = cv2.threshold(img_np, 128, 255, cv2.THRESH_BINARY_INV)
-    coords = np.column_stack(np.where(binary > 0))
-
-    if len(coords) < 50:
-        return line_img
-
-    angle = cv2.minAreaRect(coords)[-1]
-    if angle < -45:
-        angle = 90 + angle
-
-    # Only correct meaningful skew, ignore near-horizontal and extreme cases
-    if abs(angle) < 0.5 or abs(angle) > 15:
-        return line_img
-
-    return line_img.rotate(angle, expand=True, fillcolor=(255, 255, 255))
-
-
-def resize_for_trocr(line_img: Image.Image) -> Image.Image:
-    w, h = line_img.size
-    if h == 0 or w == 0:
-        return line_img
-    new_w = max(int(w * TROCR_LINE_HEIGHT / h), 32)
-    return line_img.resize((new_w, TROCR_LINE_HEIGHT), Image.LANCZOS)
-
-
-def process_line_for_trocr(raw_crop: Image.Image) -> Image.Image:
-    """
-    Processing order matters:
-      1. Background noise removal (LAB → CLAHE → adaptive threshold)
-         Must be first — all subsequent steps work on the clean binary.
-      2. Deskew — angle detection is accurate only on clean ink pixels.
-      3. Resize — after deskew so aspect ratio is correct.
-      4. Final sharpening — recovers any softness from LANCZOS resize.
-
-    NOTE: We do NOT apply a second adaptive threshold after resize
-    (the old approach did this and destroyed thin strokes at small sizes).
-    """
-    img = raw_crop.convert("RGB")
-
-    # 1. Remove background noise — the main improvement for bad paper quality
-    img = remove_background_noise(img)
-
-    # 2. Deskew on clean binary
-    img = deskew_line(img)
-
-    # 3. Resize to TrOCR target height
-    img = resize_for_trocr(img)
-
-    # 4. Mild final contrast to ensure ink is fully black after resize
-    img = ImageEnhance.Contrast(img).enhance(1.4)
-
-    return img
 
 
 # ════════════════════════════════════════════════════════════════
@@ -328,7 +180,7 @@ def segment_page(
 
     original            = load_original(page_path)
     kraken_input, scale = make_kraken_copy(original)
-    # kraken_input        = preprocess_for_kraken(kraken_input)
+    # No preprocessing – Kraken's neural segmenter works directly on the image
 
     kwargs = {"model": seg_model} if seg_model is not None else {}
     seg    = segment_fn(kraken_input, **kwargs)
@@ -344,18 +196,16 @@ def segment_page(
             if not boundary_scaled or len(boundary_scaled) < 3:
                 continue
 
-            # Scale polygon back to original image resolution
             boundary_orig = scale_boundary_to_original(boundary_scaled, scale)
 
-            # ── POLYGON crop (not bbox) ───────────────────────
             raw_crop = crop_polygon_from_original(original, boundary_orig)
             if raw_crop is None:
                 continue
 
-            processed     = process_line_for_trocr(raw_crop)
+            # Save the raw polygon crop without any further preprocessing
             line_filename = f"{page_name}_line{line_idx:03d}.png"
             line_path     = os.path.join(LINE_OUTPUT_DIR, line_filename)
-            processed.save(line_path, format="PNG", optimize=True)
+            raw_crop.save(line_path, format="PNG", optimize=True)
             extracted.append((line_path, line_filename))
 
         except Exception:
@@ -426,7 +276,6 @@ def run_pipeline():
     print("=" * 60)
     print(f"  Pages found      : {len(page_images)}")
     print(f"  Kraken max side  : {KRAKEN_MAX_SIDE}px")
-    print(f"  TrOCR line height: {TROCR_LINE_HEIGHT}px")
     print(f"  TrOCR batch size : {TROCR_BATCH_SIZE}")
     print(f"  Line output dir  : {LINE_OUTPUT_DIR}")
     print(f"  CSV output       : {CSV_OUTPUT}")
