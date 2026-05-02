@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import cv2
 
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image, ImageEnhance, ImageFilter, ImageDraw
 from tqdm import tqdm
 from pathlib import Path
 
@@ -24,8 +24,8 @@ CSV_OUTPUT      = "./labels_to_review.csv"
 KRAKEN_MAX_SIDE   = 1200
 MIN_LINE_HEIGHT   = 18
 MIN_LINE_WIDTH    = 80
-CROP_PADDING_X    = 12
-CROP_PADDING_Y    = 6
+CROP_PADDING_X    = 10
+CROP_PADDING_Y    = 4
 TROCR_LINE_HEIGHT = 64
 TROCR_BATCH_SIZE  = 8      # raise to 16 if you have 8GB+ VRAM
 
@@ -37,7 +37,6 @@ os.makedirs(LINE_OUTPUT_DIR, exist_ok=True)
 # ════════════════════════════════════════════════════════════════
 
 def init_gpu() -> torch.device:
-    """Crash immediately with a helpful message if CUDA is missing."""
     if not torch.cuda.is_available():
         raise EnvironmentError(
             "\n  ERROR: No CUDA GPU found.\n"
@@ -52,20 +51,6 @@ def init_gpu() -> torch.device:
 
 
 def init_kraken() -> tuple:
-    """
-    Load kraken blla segmenter + its default bundled model.
-
-    Returns (segment_fn, seg_model) where seg_model may be None
-    if the version doesn't require an explicit model argument.
-
-    Version compatibility:
-      v4+  : from kraken.blla import segment   (blla is a module)
-      v3   : from kraken import blla; blla.segment(...)
-    Both versions accept an optional model= kwarg; if the bundled
-    default model path exists we load it explicitly so Kraken doesn't
-    re-download it on every call.
-    """
-    # ── 1. Resolve the segment function ─────────────────────
     segment_fn = None
     for attempt in ["module", "submodule"]:
         try:
@@ -82,44 +67,33 @@ def init_kraken() -> tuple:
     if segment_fn is None:
         raise ImportError(
             "\n  ERROR: Could not import kraken.blla.segment.\n"
-            "  Fix:\n"
-            "    pip uninstall kraken -y\n"
-            "    pip install --no-cache-dir kraken\n"
-            "    python -c \"from kraken.blla import segment; print('OK')\"\n"
+            "  Fix: pip uninstall kraken -y && pip install --no-cache-dir kraken\n"
         )
 
-    # ── 2. Load the bundled blla.mlmodel explicitly ──────────
-    # Avoids repeated downloads and makes the model GPU-resident.
     seg_model = None
     try:
         from kraken.lib.vgsl import TorchVGSLModel
         import importlib.resources as pkg_resources
-        # Kraken bundles blla.mlmodel inside its package directory
         try:
             model_path = str(pkg_resources.files("kraken").joinpath("blla.mlmodel"))
         except (TypeError, AttributeError):
-            # older importlib.resources fallback
-            import kraken as _kraken_pkg
-            model_path = os.path.join(os.path.dirname(_kraken_pkg.__file__), "blla.mlmodel")
+            import kraken as _k
+            model_path = os.path.join(os.path.dirname(_k.__file__), "blla.mlmodel")
 
         if os.path.exists(model_path):
             seg_model = TorchVGSLModel.load_model(model_path)
             seg_model.eval()
             print(f"  ✓ Kraken model  : {model_path}")
         else:
-            print("  ⚠ blla.mlmodel not found on disk — Kraken will use its default")
+            print("  ⚠ blla.mlmodel not on disk — Kraken will auto-download")
     except Exception as e:
         print(f"  ⚠ Could not pre-load blla model ({e}) — Kraken will auto-load")
 
-    print(f"  ✓ Kraken blla   : {segment_fn}")
+    print(f"  ✓ Kraken blla   : segment function loaded")
     return segment_fn, seg_model
 
 
 def init_trocr(device: torch.device) -> tuple:
-    """
-    Load TrOCR with safetensors (bypasses torch.load CVE-2025-32434).
-    Applies FP16 on GPU for ~2x faster inference.
-    """
     from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
     processor = TrOCRProcessor.from_pretrained(
@@ -128,10 +102,9 @@ def init_trocr(device: torch.device) -> tuple:
     )
     model = VisionEncoderDecoderModel.from_pretrained(
         "microsoft/trocr-base-handwritten",
-        use_safetensors=True,       # avoids torch.load entirely
+        use_safetensors=True,
     )
-    model = model.to(device).eval().half()  # FP16 on GPU
-
+    model = model.to(device).eval().half()
     print(f"  ✓ TrOCR (FP16)  : ready on {torch.cuda.get_device_name(0)}")
     return processor, model
 
@@ -154,8 +127,13 @@ def make_kraken_copy(original: Image.Image) -> tuple[Image.Image, float]:
 
 
 def preprocess_for_kraken(image: Image.Image) -> Image.Image:
+    """
+    Light preprocessing for Kraken's neural segmenter.
+    Kraken's blla is a neural net — it prefers clean, moderate-contrast
+    input, NOT heavy binarization (that destroys the texture it uses).
+    """
     img = image.convert("L")
-    img = ImageEnhance.Contrast(img).enhance(1.8)
+    img = ImageEnhance.Contrast(img).enhance(1.5)   # mild boost only
     img = img.filter(ImageFilter.MedianFilter(size=3))
     return img.convert("RGB")
 
@@ -164,71 +142,176 @@ def scale_boundary_to_original(boundary: list, scale: float) -> list:
     return [(int(x * scale), int(y * scale)) for x, y in boundary]
 
 
-def crop_line_from_original(original: Image.Image, boundary: list):
+# ════════════════════════════════════════════════════════════════
+# POLYGON-AWARE CROP  ← KEY FIX #1
+# ════════════════════════════════════════════════════════════════
+
+def crop_polygon_from_original(
+    original: Image.Image,
+    boundary: list,          # Kraken polygon — can be wavy/curved, NOT a rectangle
+):
+    """
+    Crop using the EXACT polygon Kraken gave us, not its bounding box.
+
+    Why this matters for wavy lines:
+      - Kraken blla returns a true polygon boundary that follows the
+        ascenders/descenders of each line, including curves and waves.
+      - The old approach took min/max of x,y → a rectangle that includes
+        text from neighbouring lines above and below.
+      - Here we: (1) take the tight bounding box of the polygon,
+        (2) draw the polygon as a white mask on black,
+        (3) paste white (255) everywhere OUTSIDE the polygon,
+        so TrOCR only sees the actual line pixels — nothing above or below.
+
+    Result: wavy/curved lines are isolated cleanly even when lines are
+    close together and a bounding box would bleed into neighbours.
+    """
     if not boundary or len(boundary) < 3:
         return None
+
     xs = [p[0] for p in boundary]
     ys = [p[1] for p in boundary]
+
+    # Tight bbox with small padding
     x1 = max(0, min(xs) - CROP_PADDING_X)
     y1 = max(0, min(ys) - CROP_PADDING_Y)
     x2 = min(original.width,  max(xs) + CROP_PADDING_X)
     y2 = min(original.height, max(ys) + CROP_PADDING_Y)
-    if (y2 - y1) < MIN_LINE_HEIGHT or (x2 - x1) < MIN_LINE_WIDTH:
+
+    crop_w, crop_h = x2 - x1, y2 - y1
+
+    if crop_h < MIN_LINE_HEIGHT or crop_w < MIN_LINE_WIDTH:
         return None
-    return original.crop((x1, y1, x2, y2))
+
+    # ── Translate polygon to local crop coordinates ──────────
+    local_poly = [(x - x1, y - y1) for x, y in boundary]
+
+    # ── Crop the image patch ──────────────────────────────────
+    patch = original.crop((x1, y1, x2, y2)).convert("RGB")
+
+    # ── Build polygon mask (white inside = keep, black outside) ─
+    mask = Image.new("L", (crop_w, crop_h), 0)          # all black
+    ImageDraw.Draw(mask).polygon(local_poly, fill=255)   # white inside polygon
+
+    # ── White-fill everything outside the polygon ─────────────
+    white = Image.new("RGB", (crop_w, crop_h), (255, 255, 255))
+    result = Image.composite(patch, white, mask)          # patch where mask=255
+
+    return result
 
 
 # ════════════════════════════════════════════════════════════════
-# LINE PROCESSING FOR TROCR
+# LINE PREPROCESSING FOR TROCR  ← KEY FIX #2
 # ════════════════════════════════════════════════════════════════
 
-def deskew_line(line_img: Image.Image) -> Image.Image:
-    img_np = np.array(line_img.convert("L"))
-    _, binary = cv2.threshold(img_np, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    coords = np.column_stack(np.where(binary > 0))
-    if len(coords) < 50:
-        return line_img
-    angle = cv2.minAreaRect(coords)[-1]
-    if angle < -45:
-        angle = 90 + angle
-    if abs(angle) < 0.5 or abs(angle) > 15:
-        return line_img
-    return line_img.rotate(angle, expand=True, fillcolor=(255, 255, 255))
+def remove_background_noise(line_img: Image.Image) -> Image.Image:
+    """
+    PURPOSE: Handle yellowed/aged/textured paper that causes background
+    noise to dominate after simple thresholding.
 
+    APPROACH — three-step strategy:
+      1. Convert to grayscale in LAB space (perceptually uniform, separates
+         luminance from colour so yellow paper doesn't darken the L channel)
+      2. CLAHE on the L channel → local contrast normalisation that
+         pushes paper background toward white regardless of paper colour
+      3. Sauvola-style local adaptive threshold → finds ink vs paper
+         locally, so even shadowed or uneven paper is handled per-region
 
-def remove_noise(line_img: Image.Image) -> Image.Image:
-    img_np  = np.array(line_img.convert("L"))
-    binary  = cv2.adaptiveThreshold(img_np, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                    cv2.THRESH_BINARY, blockSize=15, C=8)
-    kernel  = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-    cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+    Why NOT global Otsu here:
+      Otsu finds one global threshold. If paper is textured or has shadows,
+      large areas of background fall on the "dark" side and get thresholded
+      as ink. Adaptive methods threshold within small windows, so they adapt
+      to local brightness — exactly what degraded paper needs.
+    """
+    img_np = np.array(line_img)
+
+    # Step 1: LAB → CLAHE on L only (paper colour irrelevant after this)
+    lab      = cv2.cvtColor(img_np, cv2.COLOR_RGB2LAB)
+    l, a, b  = cv2.split(lab)
+    clahe    = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(4, 4))
+    l        = clahe.apply(l)
+    lab      = cv2.merge((l, a, b))
+    enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
+    gray     = cv2.cvtColor(enhanced, cv2.COLOR_RGB2GRAY)
+
+    # Step 2: Adaptive threshold — local windows (31px) adapt to paper texture
+    binary = cv2.adaptiveThreshold(
+        gray, 255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        blockSize=31,    # larger window → more robust to slow gradients
+        C=12,            # C=12 comfortably removes light paper texture noise
+    )
+
+    # Step 3: Morphological cleanup — remove tiny isolated speckles
+    # that survive adaptive threshold (pen scratches, paper fibres)
+    kernel  = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+    cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
+
+    # Step 4: Close small gaps in strokes broken by noisy thresholding
+    kernel2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 1))
+    cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel2, iterations=1)
+
     return Image.fromarray(cleaned).convert("RGB")
 
 
-def normalize_brightness(line_img: Image.Image) -> Image.Image:
-    img_np  = np.array(line_img)
-    lab     = cv2.cvtColor(img_np, cv2.COLOR_RGB2LAB)
-    l, a, b = cv2.split(lab)
-    clahe   = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    lab     = cv2.merge((clahe.apply(l), a, b))
-    return Image.fromarray(cv2.cvtColor(lab, cv2.COLOR_LAB2RGB))
+def deskew_line(line_img: Image.Image) -> Image.Image:
+    """
+    Correct slight tilt. Works on the already-cleaned binary image
+    so only real ink pixels contribute to the angle estimate.
+    """
+    img_np = np.array(line_img.convert("L"))
+    _, binary = cv2.threshold(img_np, 128, 255, cv2.THRESH_BINARY_INV)
+    coords = np.column_stack(np.where(binary > 0))
+
+    if len(coords) < 50:
+        return line_img
+
+    angle = cv2.minAreaRect(coords)[-1]
+    if angle < -45:
+        angle = 90 + angle
+
+    # Only correct meaningful skew, ignore near-horizontal and extreme cases
+    if abs(angle) < 0.5 or abs(angle) > 15:
+        return line_img
+
+    return line_img.rotate(angle, expand=True, fillcolor=(255, 255, 255))
 
 
 def resize_for_trocr(line_img: Image.Image) -> Image.Image:
     w, h = line_img.size
     if h == 0 or w == 0:
         return line_img
-    return line_img.resize((max(int(w * TROCR_LINE_HEIGHT / h), 32), TROCR_LINE_HEIGHT), Image.LANCZOS)
+    new_w = max(int(w * TROCR_LINE_HEIGHT / h), 32)
+    return line_img.resize((new_w, TROCR_LINE_HEIGHT), Image.LANCZOS)
 
 
 def process_line_for_trocr(raw_crop: Image.Image) -> Image.Image:
+    """
+    Processing order matters:
+      1. Background noise removal (LAB → CLAHE → adaptive threshold)
+         Must be first — all subsequent steps work on the clean binary.
+      2. Deskew — angle detection is accurate only on clean ink pixels.
+      3. Resize — after deskew so aspect ratio is correct.
+      4. Final sharpening — recovers any softness from LANCZOS resize.
+
+    NOTE: We do NOT apply a second adaptive threshold after resize
+    (the old approach did this and destroyed thin strokes at small sizes).
+    """
     img = raw_crop.convert("RGB")
-    img = normalize_brightness(img)
+
+    # 1. Remove background noise — the main improvement for bad paper quality
+    img = remove_background_noise(img)
+
+    # 2. Deskew on clean binary
     img = deskew_line(img)
-    img = remove_noise(img)
+
+    # 3. Resize to TrOCR target height
     img = resize_for_trocr(img)
-    img = ImageEnhance.Contrast(img).enhance(1.6)
-    img = ImageEnhance.Sharpness(img).enhance(1.3)
+
+    # 4. Mild final contrast to ensure ink is fully black after resize
+    img = ImageEnhance.Contrast(img).enhance(1.4)
+
     return img
 
 
@@ -240,18 +323,16 @@ def segment_page(
     page_path: str,
     page_name: str,
     segment_fn,
-    seg_model,          # TorchVGSLModel or None
+    seg_model,
 ) -> list[tuple[str, str]]:
 
     original            = load_original(page_path)
     kraken_input, scale = make_kraken_copy(original)
-    kraken_input        = preprocess_for_kraken(kraken_input)
+    # kraken_input        = preprocess_for_kraken(kraken_input)
 
-    # Pass model= only if we have one; otherwise let Kraken use its default
     kwargs = {"model": seg_model} if seg_model is not None else {}
     seg    = segment_fn(kraken_input, **kwargs)
 
-    # Handles both modern Segmentation object and legacy dict
     lines     = seg.lines if hasattr(seg, "lines") else seg.get("lines", [])
     extracted = []
 
@@ -263,8 +344,11 @@ def segment_page(
             if not boundary_scaled or len(boundary_scaled) < 3:
                 continue
 
+            # Scale polygon back to original image resolution
             boundary_orig = scale_boundary_to_original(boundary_scaled, scale)
-            raw_crop      = crop_line_from_original(original, boundary_orig)
+
+            # ── POLYGON crop (not bbox) ───────────────────────
+            raw_crop = crop_polygon_from_original(original, boundary_orig)
             if raw_crop is None:
                 continue
 
@@ -273,6 +357,7 @@ def segment_page(
             line_path     = os.path.join(LINE_OUTPUT_DIR, line_filename)
             processed.save(line_path, format="PNG", optimize=True)
             extracted.append((line_path, line_filename))
+
         except Exception:
             continue
 
@@ -347,14 +432,12 @@ def run_pipeline():
     print(f"  CSV output       : {CSV_OUTPUT}")
     print("=" * 60)
 
-    # ── INIT: all resources loaded before any page is touched ─
     print("\n[ INIT ]")
     device                 = init_gpu()
     segment_fn, seg_model  = init_kraken()
     processor, trocr_model = init_trocr(device)
     print()
 
-    # ── STAGE 1 ───────────────────────────────────────────────
     print("[ STAGE 1 ] Kraken Line Segmentation\n")
 
     all_line_paths = []
@@ -384,7 +467,6 @@ def run_pipeline():
         print("\nNo lines extracted. Check input images & Kraken install.")
         return
 
-    # ── STAGE 2 ───────────────────────────────────────────────
     print("\n[ STAGE 2 ] TrOCR Auto-Labeling (GPU batched)\n")
 
     rows         = []
@@ -413,13 +495,11 @@ def run_pipeline():
 
     stage2_time = time.time() - stage2_start
 
-    # ── STAGE 3 — Save CSV ────────────────────────────────────
     print("\n[ STAGE 3 ] Saving CSV\n")
     df = pd.DataFrame(rows)
     df = df.sort_values("confidence_pct", ascending=True).reset_index(drop=True)
     df.to_csv(CSV_OUTPUT, index=False, encoding="utf-8-sig")
 
-    # ── Summary ───────────────────────────────────────────────
     total_time = stage1_time + stage2_time
     avg_conf   = df["confidence_pct"].mean()
     high_conf  = len(df[df["confidence_pct"] >= 75])
