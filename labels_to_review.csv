@@ -1,47 +1,43 @@
 ﻿image_path,image_filename,page_name,auto_label,confidence_pct,human_label,reviewed
-./extracted_lines\test2_line021.png,test2_line021.png,test2,cent,60.4,,No
-./extracted_lines\test2_line022.png,test2_line022.png,test2,made on bulky,64.2,,No
-./extracted_lines\test2_line017.png,test2_line017.png,test2,panos .,68.8,,No
-./extracted_lines\test2_line023.png,test2_line023.png,test2,angistory by built,69.9,,No
-./extracted_lines\test2_line012.png,test2_line012.png,test2,silicon dioxide csios,72.8,,No
-./extracted_lines\test2_line016.png,test2_line016.png,test2,lebodi,74.1,,No
-./extracted_lines\test2_line029.png,test2_line029.png,test2,negat,75.2,,No
-./extracted_lines\test2_line008.png,test2_line008.png,test2,jobs .,75.6,,No
-./extracted_lines\test2_line014.png,test2_line014.png,test2,engipted,76.9,,No
-./extracted_lines\test2_line010.png,test2_line010.png,test2,crumbs .,78.6,,No
-./extracted_lines\test2_line020.png,test2_line020.png,test2,upbuilt .,79.6,,No
-./extracted_lines\test2_line007.png,test2_line007.png,test2,layed,80.1,,No
-./extracted_lines\test2_line033.png,test2_line033.png,test2,bod,82.4,,No
-./extracted_lines\test2_line040.png,test2_line040.png,test2,tothe,83.3,,No
-./extracted_lines\test2_line003.png,test2_line003.png,test2,nullating,83.4,,No
-./extracted_lines\test2_line011.png,test2_line011.png,test2,captors .,83.5,,No
-./extracted_lines\test2_line015.png,test2_line015.png,test2,impconductory,84.6,,No
-./extracted_lines\test2_line032.png,test2_line032.png,test2,land silicon way,84.7,,No
-./extracted_lines\test2_line013.png,test2_line013.png,test2,"date , body of bullow .",84.9,,No
-./extracted_lines\test2_line006.png,test2_line006.png,test2,innmons .,85.2,,No
-./extracted_lines\test2_line044.png,test2_line044.png,test2,douain .,86.4,,No
-./extracted_lines\test8_line007.png,test8_line007.png,test8,every join . Raja is Hucchi . Shreya,86.8,,No
-./extracted_lines\test2_line004.png,test2_line004.png,test2,lled,88.5,,No
-./extracted_lines\test2_line038.png,test2_line038.png,test2,grounded .,88.5,,No
-./extracted_lines\test2_line027.png,test2_line027.png,test2,with,88.7,,No
-./extracted_lines\test2_line009.png,test2_line009.png,test2,congists,89.3,,No
-./extracted_lines\test8_line008.png,test8_line008.png,test8,"a very , very good girl .",89.4,,No
-./extracted_lines\test2_line039.png,test2_line039.png,test2,coithorn,89.8,,No
-./extracted_lines\test2_line037.png,test2_line037.png,test2,called of Bowie and,90.8,,No
-./extracted_lines\test2_line031.png,test2_line031.png,test2,"a conducting gate , are",91.5,,No
-./extracted_lines\test8_line004.png,test8_line004.png,test8,Bucks . Shrejan looks exactly like a,91.7,,No
-./extracted_lines\test2_line045.png,test2_line045.png,test2,ebody and hallucations,92.3,,No
-./extracted_lines\test8_line002.png,test8_line002.png,test8,care,92.6,,No
-./extracted_lines\test8_line005.png,test8_line005.png,test8,indure . Sask,93.0,,No
-./extracted_lines\test2_line026.png,test2_line026.png,test2,acerts .,93.1,,No
-./extracted_lines\test2_line030.png,test2_line030.png,test2,typically,93.4,,No
-./extracted_lines\test2_line035.png,test2_line035.png,test2,valgo,93.5,,No
-./extracted_lines\test2_line000.png,test2_line000.png,test2,ach .,93.6,,No
-./extracted_lines\test8_line001.png,test8_line001.png,test8,fantastic . Strejan and Shashwath,94.5,,No
-./extracted_lines\test2_line036.png,test2_line036.png,test2,and has superior,95.1,,No
-./extracted_lines\test2_line002.png,test2_line002.png,test2,angiglossi,95.8,,No
-./extracted_lines\test8_line003.png,test8_line003.png,test8,the two waste bodies . They both are,96.5,,No
-./extracted_lines\test8_line000.png,test8_line000.png,test8,the great shreya . And Raja . They are,96.7,,No
-./extracted_lines\test2_line048.png,test2_line048.png,test2,gate called all source and domain .,97.2,,No
-./extracted_lines\test8_line006.png,test8_line006.png,test8,is Bad boy and he,98.3,,No
-./extracted_lines\test2_line024.png,test2_line024.png,test2,semini conductor,98.9,,No
+./extracted_lines\test12_line004.png,test12_line004.png,test12,turners .,59.1,,No
+./extracted_lines\test12_line002.png,test12_line002.png,test12,On this all computers are launched equally .,61.2,,No
+./extracted_lines\test11_line004.png,test11_line004.png,test11,""" High data "" transfer speed",62.9,,No
+./extracted_lines\test11_line006.png,test11_line006.png,test11,show communication cost,63.6,,No
+./extracted_lines\test12_line003.png,test12_line003.png,test12,and can chase leaves directly without the centres,65.1,,No
+./extracted_lines\test11_line007.png,test11_line007.png,test11,many network management,66.8,,No
+./extracted_lines\test11_line005.png,test11_line005.png,test11,""" Easy changing of files and printers",67.6,,No
+./extracted_lines\test12_line001.png,test12_line001.png,test12,a peer-to-perr.ann .,67.9,,No
+./extracted_lines\test12_line000.png,test12_line000.png,test12,to client computers .,72.4,,No
+./extracted_lines\test11_line001.png,test11_line001.png,test11,mitzrecks .,75.0,,No
+./extracted_lines\test11_line011.png,test11_line011.png,test11,types of land .,75.3,,No
+./extracted_lines\test11_line002.png,test11_line002.png,test11,write the advantages of inn and what are thought,78.3,,No
+./extracted_lines\test11_line008.png,test11_line008.png,test11,""" better faculty .",79.1,,No
+./extracted_lines\test12_line010.png,test12_line010.png,test12,a partisan used is to follow .,79.3,,No
+./extracted_lines\test12_line014.png,test12_line014.png,test12,""" contains more advisers by the Sendingeline",79.7,,No
+./extracted_lines\test12_line016.png,test12_line016.png,test12,""" In IEEE bosses is indicated the length of dark",80.5,,No
+./extracted_lines\test12_line006.png,test12_line006.png,test12,""" better consist of alternating is and as",80.9,,No
+./extracted_lines\test12_line008.png,test12_line008.png,test12,"gossip-strant frame delimitive lifestyle ) ,",81.4,,No
+./extracted_lines\test11_line010.png,test11_line010.png,test11,""" Resource charity is possible",81.9,,No
+./extracted_lines\test11_line017.png,test11_line017.png,test11,an this duties are launched using safety,82.1,,No
+./extracted_lines\test11_line016.png,test11_line016.png,test11,correctress land .,82.4,,No
+./extracted_lines\test12_line005.png,test12_line005.png,test12,"""paramble (7 bytes ) ,",82.9,,No
+./extracted_lines\test12_line009.png,test12_line009.png,test12,""" Andicates the beginning of the flame",83.2,,No
+./extracted_lines\test11_line003.png,test11_line003.png,test11,advantages of them .,83.3,,No
+./extracted_lines\test11_line009.png,test11_line009.png,test11,""" Early Communication between users",83.5,,No
+./extracted_lines\test11_line018.png,test11_line018.png,test11,"whiff without cables to "" proudly mobility and",83.9,,No
+./extracted_lines\test12_line018.png,test12_line018.png,test12,On Ethernet W. it includes the Protocol type,84.0,,No
+./extracted_lines\test12_line013.png,test12_line013.png,test12,in course address ( bicycles .,84.3,,No
+./extracted_lines\test12_line007.png,test12_line007.png,test12,word for synchronization between Sunday and Receiver .,84.3,,No
+./extracted_lines\test12_line015.png,test12_line015.png,test12,""" Length ( proped the typical",84.4,,No
+./extracted_lines\test11_line019.png,test11_line019.png,test11,flexibility .,85.6,,No
+./extracted_lines\test11_line000.png,test11_line000.png,test11,shashworthies .,85.8,,No
+./extracted_lines\test12_line017.png,test12_line017.png,test12,viti-told .,85.9,,No
+./extracted_lines\test11_line022.png,test11_line022.png,test11,"hematics and Markets mobility , and flexibility services",86.8,,No
+./extracted_lines\test11_line020.png,test11_line020.png,test11,in this one central former controls makeaway,87.3,,No
+./extracted_lines\test11_line021.png,test11_line021.png,test11,relent serum land .,88.2,,No
+./extracted_lines\test12_line012.png,test12_line012.png,test12,""" contain more address of the receiving divine",90.5,,No
+./extracted_lines\test11_line013.png,test11_line013.png,test11,"in what , but , compares one connected voting",91.5,,No
+./extracted_lines\test12_line011.png,test12_line011.png,test12,"of Destination address ( Boyle ) ,",93.8,,No
+./extracted_lines\test11_line014.png,test11_line014.png,test11,"cables such as Ethernet cables , it provides high",93.8,,No
+./extracted_lines\test11_line015.png,test11_line015.png,test11,speed and stable communication,95.3,,No
+./extracted_lines\test11_line012.png,test11_line012.png,test11,swicked Lane .,95.3,,No
