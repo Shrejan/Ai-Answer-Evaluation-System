@@ -85,7 +85,7 @@ ipython_config.py
 
 # pyenv
 .python-version
-
+./raw_img
 # pipenv
 Pipfile.lock
 
@@ -105,3 +105,8 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+#.envs
+answer_evaluator/.env
+.env
+.env.*

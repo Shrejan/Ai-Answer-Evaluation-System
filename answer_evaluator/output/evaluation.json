@@ -1,0 +1,160 @@
+{
+  "score": 5.5,
+  "similarity": 0.0998,
+  "concept_coverage": 0.0,
+  "concepts": [
+    {
+      "concept": "An aquifer is a geological formation consisting of permeable rocks or sediments that can store and transmit groundwater.",
+      "similarity": 0.1824,
+      "status": "missing"
+    },
+    {
+      "concept": "Aquifers supply water to wells, springs, and boreholes and are important sources of water for drinking, irrigation, and industrial purposes.",
+      "similarity": 0.2368,
+      "status": "missing"
+    },
+    {
+      "concept": "Based on hydrogeological characteristics, aquifers can be classified into different types, including unconfined and confined aquifers.",
+      "similarity": 0.1429,
+      "status": "missing"
+    },
+    {
+      "concept": "1.",
+      "similarity": 0.2317,
+      "status": "missing"
+    },
+    {
+      "concept": "Unconfined Aquifer\n\nAn unconfined aquifer is a common type of aquifer whose upper surface, known as the water table, is directly connected to the atmosphere.",
+      "similarity": 0.1735,
+      "status": "missing"
+    },
+    {
+      "concept": "It is formed by permeable rock or sediment layers such as sand, gravel, or sandstone that allow rainwater to infiltrate and accumulate as groundwater.",
+      "similarity": 0.1434,
+      "status": "missing"
+    },
+    {
+      "concept": "Water can enter the aquifer directly from the ground surface through infiltration and recharge caused by rainfall.",
+      "similarity": 0.2008,
+      "status": "missing"
+    },
+    {
+      "concept": "The water level in wells connected to an unconfined aquifer can rise or fall depending on rainfall and seasonal variations.",
+      "similarity": 0.1534,
+      "status": "missing"
+    },
+    {
+      "concept": "2.",
+      "similarity": 0.2597,
+      "status": "missing"
+    },
+    {
+      "concept": "Confined Aquifer\n\nA confined aquifer is a water-bearing geological layer trapped between relatively impermeable rock layers such as clay or shale.",
+      "similarity": 0.1704,
+      "status": "missing"
+    },
+    {
+      "concept": "The groundwater is under pressure because it is confined between these layers.",
+      "similarity": 0.1268,
+      "status": "missing"
+    },
+    {
+      "concept": "When a well is drilled into a confined aquifer, the water may rise in the well or flow naturally to the surface.",
+      "similarity": 0.1495,
+      "status": "missing"
+    },
+    {
+      "concept": "Confined aquifers are generally located deeper underground and are less exposed to surface pollution than unconfined aquifers.",
+      "similarity": 0.1847,
+      "status": "missing"
+    }
+  ],
+  "report": {
+    "correct_concepts": [],
+    "missing_concepts": [
+      "Definition of aquifers",
+      "Importance of aquifers for water supply",
+      "Classification of aquifers into unconfined and confined types",
+      "Characteristics of unconfined aquifers",
+      "Characteristics of confined aquifers"
+    ],
+    "errors": [
+      {
+        "statement": "shashwaithood .",
+        "explanation": "This statement is unclear and does not relate to the topic of aquifers.",
+        "severity": "high"
+      },
+      {
+        "statement": "write the advantages of this and what are likely advantages of them .",
+        "explanation": "This statement does not address the types of aquifers or their characteristics.",
+        "severity": "high"
+      },
+      {
+        "statement": "\" High data \" transfer speed",
+        "explanation": "This is irrelevant to the topic of aquifers and appears to discuss networking instead.",
+        "severity": "high"
+      },
+      {
+        "statement": "Easy charming of files and printers",
+        "explanation": "This statement is unrelated to aquifers and does not contribute to the discussion.",
+        "severity": "high"
+      },
+      {
+        "statement": "\" How communication cost",
+        "explanation": "This statement is vague and does not pertain to aquifers.",
+        "severity": "high"
+      },
+      {
+        "statement": "Every network management",
+        "explanation": "This is irrelevant to the topic and does not provide any information about aquifers.",
+        "severity": "high"
+      },
+      {
+        "statement": "\" better faculty .",
+        "explanation": "This statement is unclear and does not relate to aquifers.",
+        "severity": "high"
+      },
+      {
+        "statement": "\" Early Communication between users",
+        "explanation": "This statement is unrelated to aquifers and does not contribute to the discussion.",
+        "severity": "high"
+      },
+      {
+        "statement": "\" Resource chairing in possible types of land .",
+        "explanation": "This statement is unclear and does not address the topic of aquifers.",
+        "severity": "high"
+      },
+      {
+        "statement": "\"wired lane .",
+        "explanation": "This is irrelevant to the topic of aquifers and appears to discuss networking instead.",
+        "severity": "high"
+      },
+      {
+        "statement": "In what he'll , computers are connected using cables such as Ethernet cables , or provides high speed and stable communication",
+        "explanation": "This statement is completely off-topic and does not relate to aquifers.",
+        "severity": "high"
+      },
+      {
+        "statement": "correctress hand .",
+        "explanation": "This statement is unclear and does not relate to the topic of aquifers.",
+        "severity": "high"
+      },
+      {
+        "statement": "an this duties are launched using entity whiff without cables to \" proudly mobility and flexibility .",
+        "explanation": "This statement is incoherent and does not pertain to aquifers.",
+        "severity": "high"
+      },
+      {
+        "statement": "relent serum land .",
+        "explanation": "This statement is unclear and does not relate to the topic of aquifers.",
+        "severity": "high"
+      },
+      {
+        "statement": "in this one central former controls increase rebuses and moulds modelling , and fertility sources",
+        "explanation": "This statement is incoherent and does not provide relevant information about aquifers.",
+        "severity": "high"
+      }
+    ],
+    "improvement": "The student should focus on defining aquifers, discussing their importance, and explaining the different types, specifically unconfined and confined aquifers, along with their characteristics."
+  }
+}

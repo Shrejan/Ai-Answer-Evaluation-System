@@ -1,0 +1,13 @@
+An aquifer is a geological formation consisting of permeable rocks or sediments that can store and transmit groundwater. Aquifers supply water to wells, springs, and boreholes and are important sources of water for drinking, irrigation, and industrial purposes. Based on hydrogeological characteristics, aquifers can be classified into different types, including unconfined and confined aquifers.
+
+1. Unconfined Aquifer
+
+An unconfined aquifer is a common type of aquifer whose upper surface, known as the water table, is directly connected to the atmosphere. It is formed by permeable rock or sediment layers such as sand, gravel, or sandstone that allow rainwater to infiltrate and accumulate as groundwater.
+
+Water can enter the aquifer directly from the ground surface through infiltration and recharge caused by rainfall. The water level in wells connected to an unconfined aquifer can rise or fall depending on rainfall and seasonal variations.
+
+2. Confined Aquifer
+
+A confined aquifer is a water-bearing geological layer trapped between relatively impermeable rock layers such as clay or shale. The groundwater is under pressure because it is confined between these layers. When a well is drilled into a confined aquifer, the water may rise in the well or flow naturally to the surface.
+
+Confined aquifers are generally located deeper underground and are less exposed to surface pollution than unconfined aquifers.
