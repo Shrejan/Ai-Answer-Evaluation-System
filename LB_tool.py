@@ -19,7 +19,7 @@ import os, json
 import pandas as pd
 from flask import Flask, request, jsonify, send_file
 
-CSV_PATH  = "./labels_to_review.csv"
+CSV_PATH  = "./D2_labels_for_shreya.csv"
 PORT      = 5000
 
 app = Flask(__name__)

@@ -1,0 +1,19 @@
+# Cursor Rules — Handwritten OCR Pipeline
+
+Before writing any code in this repo, read every file in `docs/` (00 through 11) in numeric order. They are the spec. This file is the enforcement layer on top of that spec — keep it in mind on every edit, not just at the start of the session.
+
+## Absolute constraints (never violate these, even if a change seems like it would "improve accuracy")
+
+1. **No image-enhancement preprocessing, anywhere.** No denoising, no CLAHE/contrast enhancement, no deskewing, no thresholding/binarization, no artificial upscaling, no sharpening, no morphological operations. This applies to the detection path AND the recognition/cropping path. If you find yourself about to add `cv2.fastNlMeansDenoising`, `cv2.createCLAHE`, `cv2.threshold`, a deskew rotation, `cv2.resize` with an upscale factor, or any similar call — stop and flag it instead of adding it.
+2. **Two image representations, never merged.** The detection representation (possibly downscaled) is used ONLY for Kraken. The recognition source (always original resolution) is used for every crop and every TrOCR call. Never pass the downscaled copy into cropping or recognition code paths.
+3. **Stable ordering.** `line_id` and word `id` values are assigned once, in reading order (top-to-bottom, left-to-right), and never reshuffled. Discarded/failed lines keep their slot; downstream code must not compact around them.
+4. **`text` and `words` in the API response must be derived from the same ordered internal representation.** Never compute them independently.
+5. **One GPU worker, bounded concurrency.** Never write code that lets multiple unbounded concurrent calls hit the same TrOCR model instance on one GPU.
+6. **Config over hardcoding.** Batch size, crop padding, min crop size, detection max dimension, process-pool worker count, row-grouping tolerance all live in `config.py`, not scattered magic numbers.
+7. **This module's scope ends at OCR output.** No semantic/NLP correction beyond SymSpell, no scoring/grading logic, no UI beyond the API/health endpoints.
+
+## Working style for this repo
+- Implement one phase from `docs/11_IMPLEMENTATION_TASKS.md` at a time, in order, with its tests, before moving to the next phase.
+- When a design choice in the docs is ambiguous or you need to deviate (e.g. FastAPI vs. an existing framework already in the repo), ask before assuming, or clearly flag the assumption in a code comment and in your response.
+- After each phase, mentally (or literally, via grep) re-check constraint #1 — it's the easiest one to violate by accident when trying to "help" accuracy.
+- Prefer small, independently testable functions per pipeline stage over one large end-to-end function — the docs' module layout (`01_ARCHITECTURE.md`) reflects this intentionally.

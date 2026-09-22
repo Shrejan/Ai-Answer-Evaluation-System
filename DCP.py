@@ -17,9 +17,11 @@ warnings.filterwarnings("ignore")
 # CONFIG
 # ════════════════════════════════════════════════════════════════
 
-INPUT_FOLDER    = "./full_pages"
-LINE_OUTPUT_DIR = "./extracted_lines"
-CSV_OUTPUT      = "./labels_to_review.csv"
+INPUT_FOLDER    = "./raw_img/shas"
+LINE_OUTPUT_DIR = "./D2_extracted_lines_for_shash"
+CSV_OUTPUT      = "./D2_labels_for_shash.csv"
+SKIP_STAGE1     = True
+DIRECT_LINE_INPUT = r"C:\Users\User\code_file_folder\python\D2_extracted_lines_for_shash"
 
 KRAKEN_MAX_SIDE   = 1200
 MIN_LINE_HEIGHT   = 18
@@ -262,55 +264,84 @@ def predict_batch(
 
 def run_pipeline():
     valid_ext   = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp"}
-    page_images = sorted([
-        f for f in Path(INPUT_FOLDER).iterdir()
-        if f.suffix.lower() in valid_ext
-    ])
 
-    if not page_images:
-        print(f"ERROR: No images found in '{INPUT_FOLDER}'")
-        return
+    if SKIP_STAGE1:
+        source_dir = DIRECT_LINE_INPUT if os.path.isdir(DIRECT_LINE_INPUT) else LINE_OUTPUT_DIR
+        page_images = sorted([
+            p for p in Path(source_dir).iterdir()
+            if p.is_file() and p.suffix.lower() in valid_ext
+        ])
+        all_line_paths = [(str(p), p.name) for p in page_images]
+        failed_pages = []
+        stage1_time = 0.0
+        print("=" * 60)
+        print("  OCR PIPELINE — SKIP STAGE 1 / TrOCR (GPU)")
+        print("=" * 60)
+        print(f"  Pre-extracted dir: {source_dir}")
+        print(f"  Line images found: {len(page_images)}")
+        print(f"  TrOCR batch size : {TROCR_BATCH_SIZE}")
+        print(f"  CSV output       : {CSV_OUTPUT}")
+        print("=" * 60)
+        print("\n[ INIT ]")
+        device = init_gpu()
+        processor, trocr_model = init_trocr(device)
+        print()
+        print("[ STAGE 1 ] Skipped — using pre-extracted line crops directly\n")
+        print(f"  Using {len(all_line_paths)} already extracted lines")
+    else:
+        page_images = sorted([
+            f for f in Path(INPUT_FOLDER).iterdir()
+            if f.suffix.lower() in valid_ext
+        ])
 
-    print("=" * 60)
-    print("  OCR PIPELINE — Kraken + TrOCR (GPU)")
-    print("=" * 60)
-    print(f"  Pages found      : {len(page_images)}")
-    print(f"  Kraken max side  : {KRAKEN_MAX_SIDE}px")
-    print(f"  TrOCR batch size : {TROCR_BATCH_SIZE}")
-    print(f"  Line output dir  : {LINE_OUTPUT_DIR}")
-    print(f"  CSV output       : {CSV_OUTPUT}")
-    print("=" * 60)
+        if not page_images:
+            print(f"ERROR: No images found in '{INPUT_FOLDER}'")
+            return
 
-    print("\n[ INIT ]")
-    device                 = init_gpu()
-    segment_fn, seg_model  = init_kraken()
-    processor, trocr_model = init_trocr(device)
-    print()
+        print("=" * 60)
+        print("  OCR PIPELINE — Kraken + TrOCR (GPU)")
+        print("=" * 60)
+        print(f"  Pages found      : {len(page_images)}")
+        print(f"  Kraken max side  : {KRAKEN_MAX_SIDE}px")
+        print(f"  TrOCR batch size : {TROCR_BATCH_SIZE}")
+        print(f"  Line output dir  : {LINE_OUTPUT_DIR}")
+        print(f"  CSV output       : {CSV_OUTPUT}")
+        print("=" * 60)
 
-    print("[ STAGE 1 ] Kraken Line Segmentation\n")
+        print("\n[ INIT ]")
+        device                 = init_gpu()
+        segment_fn, seg_model  = init_kraken()
+        processor, trocr_model = init_trocr(device)
+        print()
 
-    all_line_paths = []
-    stage1_start   = time.time()
-    failed_pages   = []
+        print("[ STAGE 1 ] Kraken Line Segmentation\n")
 
-    for page_path in tqdm(page_images, desc="Pages"):
-        page_name = page_path.stem
-        try:
-            lines = segment_page(str(page_path), page_name, segment_fn, seg_model)
-            all_line_paths.extend(lines)
-            tqdm.write(f"  ✓ {page_name}: {len(lines)} lines")
-        except Exception as e:
-            tqdm.write(f"  ✗ {page_name}: FAILED — {e}")
-            failed_pages.append(page_name)
+        all_line_paths = []
+        stage1_start   = time.time()
+        failed_pages   = []
 
-    stage1_time = time.time() - stage1_start
+        for page_path in tqdm(page_images, desc="Pages"):
+            page_name = page_path.stem
+            try:
+                lines = segment_page(str(page_path), page_name, segment_fn, seg_model)
+                all_line_paths.extend(lines)
+                tqdm.write(f"  ✓ {page_name}: {len(lines)} lines")
+            except Exception as e:
+                tqdm.write(f"  ✗ {page_name}: FAILED — {e}")
+                failed_pages.append(page_name)
+
+        stage1_time = time.time() - stage1_start
+
     total_lines = len(all_line_paths)
 
-    print(f"\n  Stage 1 done in {stage1_time/60:.1f} min")
-    print(f"  Lines extracted  : {total_lines}")
-    print(f"  Pages failed     : {len(failed_pages)}")
-    if failed_pages:
-        print(f"  Failed pages     : {', '.join(failed_pages)}")
+    if SKIP_STAGE1:
+        stage1_time = 0.0
+    else:
+        print(f"\n  Stage 1 done in {stage1_time/60:.1f} min")
+        print(f"  Lines extracted  : {total_lines}")
+        print(f"  Pages failed     : {len(failed_pages)}")
+        if failed_pages:
+            print(f"  Failed pages     : {', '.join(failed_pages)}")
 
     if total_lines == 0:
         print("\nNo lines extracted. Check input images & Kraken install.")
