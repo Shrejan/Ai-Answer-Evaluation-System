@@ -52,3 +52,11 @@ def test_below_threshold_word_unchanged(monkeypatch):
     )
     assert "zzzzterm" in corrected
     assert not info[0].changed
+
+
+def test_spaces_preserved_between_words():
+    config = SpellConfig(enabled=True, max_edit_distance=2)
+    raw = "General health medical camp: \nProvide basic check-ups for all"
+    corrected, _ = spell_correct_line(raw, set(), config)
+    assert corrected == "General health medical camp: \nProvide basic check-ups for all"
+

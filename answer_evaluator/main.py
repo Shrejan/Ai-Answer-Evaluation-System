@@ -1,9 +1,13 @@
 """
-Entry point.
+Main entry point for Answer Evaluator.
 
 Usage:
+    # Run FastAPI Server (default):
     python main.py
-    python main.py --question input/question.txt --reference input/reference.txt --student input/student_answer.txt
+    python main.py --host 0.0.0.0 --port 8000
+
+    # Run direct file evaluation CLI:
+    python main.py --cli --question input/question.txt --reference input/reference.txt --student input/student_answer.txt
 """
 
 import argparse
@@ -30,26 +34,12 @@ def read_text_file(path: str, label: str) -> str:
     return text
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Fast descriptive-answer evaluator")
-    parser.add_argument("--question", default=config.DEFAULT_QUESTION_PATH)
-    parser.add_argument("--reference", default=config.DEFAULT_REFERENCE_PATH)
-    parser.add_argument("--student", default=config.DEFAULT_STUDENT_PATH)
-    parser.add_argument("--output", default=config.DEFAULT_OUTPUT_PATH)
-    return parser.parse_args()
-
-
-def main():
-    args = parse_args()
-
+def run_cli_eval(args):
     print("Loading embedding model...")
-    # Model is loaded lazily on first use inside evaluate(), but we trigger
-    # it here explicitly so the "Loading..." message and device print
-    # happen before we start reading files/computing similarity.
     from embeddings import get_model
     get_model()
 
-    print("Reading student answer...")
+    print("Reading input files...")
     question = read_text_file(args.question, "Question")
     reference_answer = read_text_file(args.reference, "Reference answer")
     student_answer = read_text_file(args.student, "Student answer")
@@ -85,10 +75,8 @@ def main():
         )
         output["report"] = report
     except OpenRouterError as exc:
-        # The numerical evaluation must still succeed even if the LLM fails.
         output["llm_error"] = str(exc)
-        print(f"Warning: LLM report generation failed ({exc}). "
-              f"Numerical evaluation is still included below.")
+        print(f"Warning: LLM report generation failed ({exc}).")
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -97,6 +85,35 @@ def main():
     print()
     print("Evaluation completed.")
     print(f"Output: {output_path}")
+
+
+def run_server(host: str, port: int, reload: bool):
+    import uvicorn
+    print(f"Starting Answer Evaluator FastAPI Server on http://{host}:{port}...")
+    uvicorn.run("app:app", host=host, port=port, reload=reload)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Fast descriptive-answer evaluator & server")
+    parser.add_argument("--cli", action="store_true", help="Run in CLI file-processing mode instead of server mode")
+    parser.add_argument("--host", default="0.0.0.0", help="Host address for FastAPI server")
+    parser.add_argument("--port", type=int, default=8000, help="Port for FastAPI server")
+    parser.add_argument("--reload", action="store_true", help="Enable auto-reload for server")
+    
+    # CLI options
+    parser.add_argument("--question", default=config.DEFAULT_QUESTION_PATH)
+    parser.add_argument("--reference", default=config.DEFAULT_REFERENCE_PATH)
+    parser.add_argument("--student", default=config.DEFAULT_STUDENT_PATH)
+    parser.add_argument("--output", default=config.DEFAULT_OUTPUT_PATH)
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    if args.cli:
+        run_cli_eval(args)
+    else:
+        run_server(host=args.host, port=args.port, reload=args.reload)
 
 
 if __name__ == "__main__":

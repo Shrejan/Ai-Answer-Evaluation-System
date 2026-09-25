@@ -1,0 +1,9 @@
+max_edit_distance: 2
+prefix_length: 7
+max_candidates_per_source: 6
+context_window_tokens: 6
+max_pool_size: 6
+ranking_weights:
+  frequency: 0.3
+  edit_distance: 0.4
+  source_agreement: 0.3

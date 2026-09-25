@@ -1,0 +1,5 @@
+{"id": "pair_001", "gt_text": "dental", "pred_text": "denital", "split": "train"}
+{"id": "pair_002", "gt_text": "transistor", "pred_text": "transisttor", "split": "train"}
+{"id": "pair_003", "gt_text": "terminal", "pred_text": "terninal", "split": "train"}
+{"id": "pair_004", "gt_text": "amplifier", "pred_text": "anplifier", "split": "train"}
+{"id": "pair_005", "gt_text": "resistor", "pred_text": "resestor", "split": "train"}

@@ -1,0 +1,10 @@
+{"id": 1, "text": "General health medical camps provide basic check-ups for all age groups.", "source": "healthcare_dataset"}
+{"id": 2, "text": "Specialized dental and eye clinics are organized periodically.", "source": "healthcare_dataset"}
+{"id": 3, "text": "Doctors check blood pressure and blood glucose levels during regular camps.", "source": "healthcare_dataset"}
+{"id": 4, "text": "Nutritional support is provided for pregnant and lactating mothers.", "source": "healthcare_dataset"}
+{"id": 5, "text": "Voluntary blood donation drives are conducted in rural community centers.", "source": "healthcare_dataset"}
+{"id": 6, "text": "A common emitter transistor amplifier provides high voltage and current gain.", "source": "ece_textbook"}
+{"id": 7, "text": "The frequency response of the operational amplifier depends on the feedback loop.", "source": "ece_textbook"}
+{"id": 8, "text": "Binary phase shift keying modulation offers superior noise immunity compared to amplitude modulation.", "source": "ece_textbook"}
+{"id": 9, "text": "Orthogonal frequency division multiplexing reduces intersymbol interference in multipath channels.", "source": "ece_textbook"}
+{"id": 10, "text": "The microcontroller executes instructions stored in non-volatile flash memory.", "source": "ece_textbook"}

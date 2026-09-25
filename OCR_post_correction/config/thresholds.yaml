@@ -1,0 +1,7 @@
+version: "thresholds_v2.yaml"
+tau_general: 0.90
+tau_domain: 0.85
+conf_threshold: 0.85
+margin_threshold: 0.0
+use_margin: false
+max_false_correction_rate: 0.01

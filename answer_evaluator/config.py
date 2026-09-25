@@ -17,14 +17,14 @@ MODEL_NAME = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 # ---------------------------------------------------------------------------
 # Concept coverage thresholds (cosine similarity, 0-1)
 # ---------------------------------------------------------------------------
-COVERED_THRESHOLD = 0.75
-PARTIAL_THRESHOLD = 0.55
+COVERED_THRESHOLD = 0.65
+PARTIAL_THRESHOLD = 0.45
 
 # ---------------------------------------------------------------------------
 # Final score formula weights (must sum to 1.0)
 # ---------------------------------------------------------------------------
-SIMILARITY_WEIGHT = 0.55
-CONCEPT_WEIGHT = 0.45
+SIMILARITY_WEIGHT = 0.65
+CONCEPT_WEIGHT = 0.35
 
 # ---------------------------------------------------------------------------
 # OpenRouter (LLM used only to write the explanation, never the score)

@@ -1,0 +1,10 @@
+backend: ollama
+host: "http://localhost:11434"
+model: "qwen3:1.7b"
+think: false
+temperature: 0.0
+seed: 42
+num_predict: 40
+num_ctx: 2048
+keep_alive: "30m"
+timeout_s: 10.0

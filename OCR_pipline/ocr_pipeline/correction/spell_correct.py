@@ -11,7 +11,7 @@ from symspellpy import SymSpell, Verbosity
 from ocr_pipeline.config import SpellConfig
 from ocr_pipeline.models import WordCorrectionInfo
 
-WORD_PATTERN = re.compile(r"(\w+(?:'\w+)?|[^\w\s])")
+WORD_PATTERN = re.compile(r"(\w+(?:'\w+)?|[^\w\s]|\s+)")
 
 
 def _build_symspell(config: SpellConfig) -> SymSpell:

@@ -1,0 +1,28 @@
+{
+  "request_id": "page_001",
+  "student_id": "S2024_112",
+  "question_id": "Q3",
+  "page_id": 1,
+  "text": "General health medical camps provide basic check-ups for all age groups. Specialized denital and eye clinics are organized periodically.",
+  "words": [
+    {"id": 0, "text": "General", "confidence": 0.98},
+    {"id": 1, "text": "health", "confidence": 0.97},
+    {"id": 2, "text": "medical", "confidence": 0.95},
+    {"id": 3, "text": "camps", "confidence": 0.96},
+    {"id": 4, "text": "provide", "confidence": 0.94},
+    {"id": 5, "text": "basic", "confidence": 0.95},
+    {"id": 6, "text": "check-ups", "confidence": 0.92},
+    {"id": 7, "text": "for", "confidence": 0.99},
+    {"id": 8, "text": "all", "confidence": 0.99},
+    {"id": 9, "text": "age", "confidence": 0.97},
+    {"id": 10, "text": "groups.", "confidence": 0.96},
+    {"id": 11, "text": "Specialized", "confidence": 0.94},
+    {"id": 12, "text": "denital", "confidence": 0.62},
+    {"id": 13, "text": "and", "confidence": 0.98},
+    {"id": 14, "text": "eye", "confidence": 0.97},
+    {"id": 15, "text": "clinics", "confidence": 0.95},
+    {"id": 16, "text": "are", "confidence": 0.99},
+    {"id": 17, "text": "organized", "confidence": 0.96},
+    {"id": 18, "text": "periodically.", "confidence": 0.93}
+  ]
+}
