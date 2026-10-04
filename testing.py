@@ -536,72 +536,89 @@ def spell_correct_lines(lines: List[str]) -> List[str]:
 # ════════════════════════════════════════════════════════════════════
 def run_pipeline(image_bgr: np.ndarray) -> OCRResult:
     """
-    Full end-to-end pipeline:
+    Direct Recognition Pipeline (TrOCR only, Detection & Spell-correction bypassed):
 
-       image_bgr  →  detect_lines  →  preprocess_parallel  →
-       recognize_batch  →  spell_correct_lines  →  OCRResult
+       image_bgr → image_pil → recognize_batch → OCRResult
 
-    Timing data is captured at each stage for diagnostics.
+    Note: Detection and Spell Correction are commented out below.
+    To restore full detection + preprocessing + spell correction,
+    uncomment the 'FULL PIPELINE STAGES' block and comment out the 'DIRECT RECOGNITION ONLY' block.
     """
     timings: dict = {}
     t_start = time.perf_counter()
 
-    # ── Convert BGR → PIL RGB (Kraken requires PIL) ─────────────────
+    # ── Convert BGR → PIL RGB ───────────────────────────────────────
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     image_pil = Image.fromarray(image_rgb)
 
-    # ── STEP 1: Detection ───────────────────────────────────────────
+    # =========================================================================
+    # [DIRECT RECOGNITION ONLY Mode (TrOCR directly on input image)]
+    # =========================================================================
     t0 = time.perf_counter()
-    lines = detect_lines(image_pil)
-    timings["detection_ms"] = round((time.perf_counter() - t0) * 1000, 1)
-    log.info(f"[1] Detected {len(lines)} lines  ({timings['detection_ms']} ms)")
-
-    if not lines:
-        return OCRResult(lines_detected=0, lines_recognized=0, text="", timings_ms=timings)
-
-    # ── STEP 2: Parallel preprocessing ─────────────────────────────
-    # Submit all crops to process pool simultaneously.
-    # While processes run, the main thread waits — but crucially,
-    # if detection and preprocessing overlap in future versions,
-    # we gain additional concurrency here.
-    t0 = time.perf_counter()
-    indexed_crops = preprocess_parallel(image_bgr, lines)
-    timings["preprocess_ms"] = round((time.perf_counter() - t0) * 1000, 1)
-    log.info(f"[2] Preprocessed {len(indexed_crops)}/{len(lines)} crops  ({timings['preprocess_ms']} ms)")
-
-    if not indexed_crops:
-        return OCRResult(lines_detected=len(lines), lines_recognized=0, text="", timings_ms=timings)
-
-    pil_images = [pil for _, pil in indexed_crops]
-    valid_indices = [idx for idx, _ in indexed_crops]
-
-    # ── STEP 3: GPU Recognition ─────────────────────────────────────
-    t0 = time.perf_counter()
-    raw_texts = recognize_batch(pil_images)
+    raw_texts = recognize_batch([image_pil])
     timings["recognition_ms"] = round((time.perf_counter() - t0) * 1000, 1)
-    log.info(f"[3] Recognized {len(raw_texts)} lines  ({timings['recognition_ms']} ms)")
+    log.info(f"[3] Recognized line (TrOCR only) ({timings['recognition_ms']} ms)")
 
-    # ── STEP 4: Spell correction ────────────────────────────────────
-    t0 = time.perf_counter()
-    corrected_texts = spell_correct_lines(raw_texts)
-    timings["spell_ms"] = round((time.perf_counter() - t0) * 1000, 1)
-    log.info(f"[4] Spell corrected  ({timings['spell_ms']} ms)")
-
-    # ── Assemble output in reading order ────────────────────────────
-    # valid_indices maps each recognized text back to its original line slot
-    slot_to_text = {valid_indices[i]: corrected_texts[i] for i in range(len(corrected_texts))}
-    final_lines  = [slot_to_text[i].strip() for i in sorted(slot_to_text) if slot_to_text[i].strip()]
-    full_text    = "\n".join(final_lines)
-
+    full_text = raw_texts[0].strip() if raw_texts else ""
     timings["total_ms"] = round((time.perf_counter() - t_start) * 1000, 1)
-    log.info(f"Pipeline done — {timings['total_ms']} ms total")
 
     return OCRResult(
-        lines_detected=len(lines),
-        lines_recognized=len(corrected_texts),
+        lines_detected=1,
+        lines_recognized=1 if full_text else 0,
         text=full_text,
         timings_ms=timings,
     )
+
+    # =========================================================================
+    # [FULL PIPELINE STAGES - UNCOMMENT BELOW TO RESTORE DETECTION & SPELL CORRECTION]
+    # =========================================================================
+    # # ── STEP 1: Detection ───────────────────────────────────────────
+    # t0 = time.perf_counter()
+    # lines = detect_lines(image_pil)
+    # timings["detection_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+    # log.info(f"[1] Detected {len(lines)} lines  ({timings['detection_ms']} ms)")
+    #
+    # if not lines:
+    #     return OCRResult(lines_detected=0, lines_recognized=0, text="", timings_ms=timings)
+    #
+    # # ── STEP 2: Parallel preprocessing ─────────────────────────────
+    # t0 = time.perf_counter()
+    # indexed_crops = preprocess_parallel(image_bgr, lines)
+    # timings["preprocess_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+    # log.info(f"[2] Preprocessed {len(indexed_crops)}/{len(lines)} crops  ({timings['preprocess_ms']} ms)")
+    #
+    # if not indexed_crops:
+    #     return OCRResult(lines_detected=len(lines), lines_recognized=0, text="", timings_ms=timings)
+    #
+    # pil_images = [pil for _, pil in indexed_crops]
+    # valid_indices = [idx for idx, _ in indexed_crops]
+    #
+    # # ── STEP 3: GPU Recognition ─────────────────────────────────────
+    # t0 = time.perf_counter()
+    # raw_texts = recognize_batch(pil_images)
+    # timings["recognition_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+    # log.info(f"[3] Recognized {len(raw_texts)} lines  ({timings['recognition_ms']} ms)")
+    #
+    # # ── STEP 4: Spell correction ────────────────────────────────────
+    # t0 = time.perf_counter()
+    # corrected_texts = spell_correct_lines(raw_texts)
+    # timings["spell_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+    # log.info(f"[4] Spell corrected  ({timings['spell_ms']} ms)")
+    #
+    # # ── Assemble output in reading order ────────────────────────────
+    # slot_to_text = {valid_indices[i]: corrected_texts[i] for i in range(len(corrected_texts))}
+    # final_lines  = [slot_to_text[i].strip() for i in sorted(slot_to_text) if slot_to_text[i].strip()]
+    # full_text    = "\n".join(final_lines)
+    #
+    # timings["total_ms"] = round((time.perf_counter() - t_start) * 1000, 1)
+    # log.info(f"Pipeline done — {timings['total_ms']} ms total")
+    #
+    # return OCRResult(
+    #     lines_detected=len(lines),
+    #     lines_recognized=len(corrected_texts),
+    #     text=full_text,
+    #     timings_ms=timings,
+    # )
 
 
 # ════════════════════════════════════════════════════════════════════

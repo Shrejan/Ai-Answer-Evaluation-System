@@ -1,0 +1,24 @@
+[
+  {
+    "Set": "SINGLE",
+    "Samples": 10000,
+    "CER": "2.2543",
+    "Seq Accuracy": "0.00%",
+    "Char Accuracy": "0.00%",
+    "Mean Latency (ms)": "2231.6",
+    "P95 Latency (ms)": "2465.1",
+    "Throughput (img/s)": "0.4",
+    "Failures": "0.0%"
+  },
+  {
+    "Set": "LINE",
+    "Samples": 2000,
+    "CER": "0.0653",
+    "Seq Accuracy": "69.50%",
+    "Char Accuracy": "93.47%",
+    "Mean Latency (ms)": "2508.8",
+    "P95 Latency (ms)": "3156.5",
+    "Throughput (img/s)": "0.4",
+    "Failures": "0.0%"
+  }
+]
